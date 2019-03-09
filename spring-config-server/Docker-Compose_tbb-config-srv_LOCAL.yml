@@ -1,0 +1,5 @@
+version: '3'
+services:
+  spring-config-srv:    
+    volumes:
+      - ./config:/config

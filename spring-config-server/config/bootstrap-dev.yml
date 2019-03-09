@@ -1,0 +1,10 @@
+spring:
+  cloud:
+    config:
+      server:
+        git:
+          uri: git@github.com:lcutlipmason/spring-configurations.git
+          searchPaths: "{profile},{profile}/i18n"
+          strictHostKeyChecking: false
+          ignoreLocalSshSettings: true
+          privateKey: "GITKEYONELINE"

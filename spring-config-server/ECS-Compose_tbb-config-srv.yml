@@ -1,0 +1,8 @@
+version: 1
+task_definition:
+  ecs_network_mode: bridge
+  services:
+    spring-config-srv:
+      essential: true
+      MinimumHealthyPercent: 0
+      mem_limit: 1024m

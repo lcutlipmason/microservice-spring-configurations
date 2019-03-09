@@ -1,0 +1,141 @@
+/* import shared library */
+@Library(value="jenkinsLibrary", changelog=false)_
+
+def ecsDevClusterName="NAMEDEV"
+def envType = "dev"
+if (isCauseUser()){
+	stage('EnvironmentSelection') {
+  		timeout(120) {
+			envType = input(id: 'userInput',    
+			message: 'Choose an environment',    
+			parameters: [[$class:               'ChoiceParameterDefinition', choices: "dev\nqa", name: 'Env', defaultValue: "DEV"]]  
+			)
+		}
+		if (envType == "qa") {
+			ecsDevClusterName="NAMETEST"
+		}
+
+	}
+}
+
+node {
+   def mvnHome
+   def project
+   def combinedVersion
+   def ecsAppend=""
+   def projectName="spring-config-srv"   
+   def imageName="$projectName:latest"
+   def author_name
+   def err = null
+      
+   try {   
+	   env.GRADLE_HOME = "${tool 'Gradle 4.10'}"
+       env.PATH="${env.GRADLE_HOME}/bin:${env.PATH}"
+	   stage('Clean Workspace') { 
+		    // Clean Workspace
+		    cleanWs()
+		
+		    // Clean previously built images
+		    try {
+		        sh "docker image rm -f $imageName"
+		    } catch (e) {
+		        /* noop */
+		    }
+	   }
+	   
+	   stage('Checkout') { 
+	
+	      checkout([
+	            $class: 'GitSCM', 
+	            branches: [[name: '*/develop']], 
+	            doGenerateSubmoduleConfigurations: false,  
+	            userRemoteConfigs: [[credentialsId: 'jenkins', url: 'ssh://git@github.com/lcutlipmason/spring-config-srv']]])	            														   
+	            
+		  /* Have to put Git Tools during Checkout Context */
+ 		  author_name = gitEmail()	            
+	   }
+	   stage('Build Initialization') {           
+	   	  version = sh (
+            script: "gradle properties | grep ^version: | awk -F: '{ print \$2 }'",
+            returnStdout: true
+		  ).trim()
+   
+	      //Split the SNAPSHOT/RELEASE moniker from the version number
+	      def (dVNumber, sVType) = "$version".tokenize( '-' )
+	      
+	      //used for the version as it adds the build number for tracability
+	      combinedVersion = "$sVType-$dVNumber"+"_"+"${BUILD_NUMBER}"
+	   }
+	   stage('Build Deployable Application') {
+	   	  echo "Building $projectName version $combinedVersion"
+	   	  
+	      // Run the build
+	      sh "gradle clean build -x test"
+	   }
+	   stage('Build Deployable Image') {
+	            
+	      echo "Building $projectName docker image..."
+	      dapp = docker.build("$projectName", "--build-arg JAR_TO_DEPLOY=build/libs/$projectName-1.0.0-SNAPSHOT.jar --build-arg JAR_TO_DEPLOY_FINAL_NAME=spring-config-srv.jar -f ./Dockerfile .")
+	   }
+	   stage('Push to ECR') {
+		                
+	        echo 'Deploying  Docker Image to ECR...'
+	    
+	    
+	        sh """
+	            
+	            # Execute ECS Registry login command
+	            eval \$(aws --profile jenkins ecr get-login --no-include-email | sed 's|https://||')
+	               
+	            where="${env.AWSECRREPO}/${projectName}":"${combinedVersion}"
+	            
+	            docker tag "${imageName}" \$where
+	    
+	            # Push docker image to AWS ECS Registry
+	            docker push \$where
+	                
+	            """
+	    } 
+		stage("Push to DE ECS ${envType}") {
+			                
+		     echo "Deploying to DE ECS ${envType}..."
+		    
+		    
+		     sh """
+		            
+		         #This will deploy to ECS -deployment-min-healthy-percent- was added since ECS will not deploy things 
+		         #if it's greater than 0 with static ports. This command creates everything but the cluster so make sure it
+		         #is correct.
+		         IMAGE="${env.AWSECRREPO}/${ecsAppend}${projectName}":"${combinedVersion}" ENV="${envType}" ecs-cli compose --aws-profile jenkins --file Docker-Compose_"${projectName}".yml --file Docker-Compose_"${projectName}"_AWS.yml --project-name "${projectName}"-"${envType}" --ecs-params ECS-Compose_"${projectName}".yml service up --cluster "${ecsDevClusterName}" --create-log-groups --deployment-min-healthy-percent 0
+		               
+		         """
+		 }
+  	} catch (caughtError) { 
+    	err = caughtError
+    	currentBuild.result = "FAILURE"
+    } finally {
+		try {
+            sh "docker container stop $imageName"
+        } catch (e) {
+            /* noop */
+        } 
+
+        try {
+            sh "docker image rm -f $imageName"
+        } catch (e) {
+            /* noop */
+        } 
+                try {
+            sh "docker image rm -f ${env.AWSECRREPO}/$projectName:$combinedVersion"
+        } catch (e) {
+            /* noop */
+        } 
+        
+		echo """${currentBuild.result}"""
+		slackNotifier(currentBuild.result, author_name)
+		/* Must re-throw exception to propagate error */
+    	if (err) {
+        	throw err
+    	}
+    }
+}

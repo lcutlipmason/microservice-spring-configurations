@@ -1,0 +1,12 @@
+spring:
+  application:
+    name: tbb-config-srv
+  cloud:
+    config:
+      server:
+        bootstrap: true      
+eureka:
+  client:
+    enabled: false
+    serviceUrl:
+      defaultZone: http://user:password@localhost:8070/eureka/

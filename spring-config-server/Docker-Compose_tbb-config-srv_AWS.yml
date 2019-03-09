@@ -1,0 +1,9 @@
+version: '3'
+services:
+  spring-config-srv:
+    logging:
+      driver: awslogs
+      options:
+        awslogs-group: /${ENV:-dev}/ecs/spring-config-srv
+        awslogs-region: us-east-1
+        awslogs-stream-prefix: ecs      

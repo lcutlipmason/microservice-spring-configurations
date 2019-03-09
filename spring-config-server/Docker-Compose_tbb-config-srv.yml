@@ -1,0 +1,14 @@
+version: '3'
+services:
+  spring-config-srv:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        JAR_TO_DEPLOY: ./build/libs/spring-config-srv-1.0.0-SNAPSHOT.jar
+        JAR_TO_DEPLOY_FINAL_NAME: spring-config-srv.jar
+    image: ${IMAGE:-configlocaltest}
+    ports:
+      - "9080:9080"
+    env_file:
+      - config/envProperties-${ENV:-local}.env      
