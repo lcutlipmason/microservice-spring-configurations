@@ -1,0 +1,19 @@
+spring:
+  application:
+    name: spring-discovery-srv
+  security:
+    user:
+      name: user
+      password: password
+server:
+  port: 9070 
+eureka:
+  server:
+    enableSelfPreservation: false
+  instance:
+    hostname: spring-discovery-srv
+  client:
+    registerWithEureka: false
+    fetchRegistry: false
+    serviceUrl:
+      defaultZone: http://user:password@localhost:${server.port}/eureka

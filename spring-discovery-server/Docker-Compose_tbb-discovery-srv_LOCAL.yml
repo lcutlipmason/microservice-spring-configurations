@@ -1,0 +1,7 @@
+version: '3'
+services:
+  spring-discovery-srv:    
+    volumes:
+      - ./config:/config
+    ports:
+      - "9070:9070"

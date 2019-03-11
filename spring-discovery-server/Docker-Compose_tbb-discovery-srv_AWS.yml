@@ -1,0 +1,11 @@
+version: '3'
+services:
+  spring-discovery-srv:
+    ports:
+      - "9070"  
+    logging:
+      driver: awslogs
+      options:
+        awslogs-group: /${ENV:-dev}/ecs/tbb-discovery-srv
+        awslogs-region: us-east-1
+        awslogs-stream-prefix: ecs      
